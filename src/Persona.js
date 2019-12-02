@@ -191,6 +191,12 @@ class Persona {
     return token
   }
 
+  async generateTokenForTheFirstTime(user, type, trx) {
+    const token = this._encrypter.encrypt(randtoken.generate(16))
+    await user.tokens().create({ type, token }, trx)
+    return token
+  }
+
   /**
    * Returns the token instance along with releated
    * users
@@ -475,7 +481,7 @@ class Persona {
    * await Persona.register(payload)
    * ```
    */
-  async register (payload, callback) {
+  async register (payload, callback=null, trx) {
     await this.runValidation(payload, this.registerationRules(), 'register')
     this.massageRegisterationData(payload)
 
@@ -483,19 +489,21 @@ class Persona {
       await callback(payload)
     }
 
-    const user = await this.getModel().create(payload)
+    const user = await this.getModel().create(payload, trx)
 
     /**
      * Get email verification token for the user
      */
-    const token = await this.generateToken(user, 'email')
+    const token = await this.generateTokenForTheFirstTime(user, 'email', trx)
 
     /**
      * Fire new::user event to app to wire up events
      */
-    this.Event.fire('user::created', { user, token })
+    if (!trx) {
+      this.Event.fire('user::created', { user, token })
+    }
 
-    return user
+    return {user, token}
   }
 
   /**
